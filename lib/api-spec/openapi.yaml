@@ -3,20 +3,25 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Luminary Resource Organizer API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: resources
+    description: Resource management
+  - name: collections
+    description: Collection management
+  - name: stats
+    description: Statistics and summaries
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +29,242 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /resources:
+    get:
+      operationId: listResources
+      tags: [resources]
+      summary: List all resources
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: tags
+          in: query
+          schema:
+            type: string
+        - name: collectionId
+          in: query
+          schema:
+            type: integer
+        - name: pinned
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of resources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Resource"
+    post:
+      operationId: createResource
+      tags: [resources]
+      summary: Create a resource
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateResourceBody"
+      responses:
+        "201":
+          description: Created resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+
+  /resources/{id}:
+    get:
+      operationId: getResource
+      tags: [resources]
+      summary: Get a resource by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateResource
+      tags: [resources]
+      summary: Update a resource
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateResourceBody"
+      responses:
+        "200":
+          description: Updated resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+    delete:
+      operationId: deleteResource
+      tags: [resources]
+      summary: Delete a resource
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+
+  /resources/{id}/pin:
+    patch:
+      operationId: togglePin
+      tags: [resources]
+      summary: Toggle pin status of a resource
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+
+  /collections:
+    get:
+      operationId: listCollections
+      tags: [collections]
+      summary: List all collections
+      responses:
+        "200":
+          description: List of collections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Collection"
+    post:
+      operationId: createCollection
+      tags: [collections]
+      summary: Create a collection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCollectionBody"
+      responses:
+        "201":
+          description: Created collection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Collection"
+
+  /collections/{id}:
+    patch:
+      operationId: updateCollection
+      tags: [collections]
+      summary: Update a collection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCollectionBody"
+      responses:
+        "200":
+          description: Updated collection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Collection"
+    delete:
+      operationId: deleteCollection
+      tags: [collections]
+      summary: Delete a collection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+
+  /stats/summary:
+    get:
+      operationId: getStatsSummary
+      tags: [stats]
+      summary: Get resource statistics summary
+      responses:
+        "200":
+          description: Stats summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsSummary"
+
+  /stats/tags:
+    get:
+      operationId: getPopularTags
+      tags: [stats]
+      summary: Get all unique tags with counts
+      responses:
+        "200":
+          description: Tag counts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TagCount"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +275,222 @@ components:
       required:
         - status
 
+    Resource:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        type:
+          type: string
+          enum: [video, website, book, pdf, note, image]
+        url:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        tags:
+          type: string
+          nullable: true
+        colorLabel:
+          type: string
+          nullable: true
+        collectionId:
+          type: integer
+          nullable: true
+        pinned:
+          type: boolean
+        sortOrder:
+          type: integer
+        author:
+          type: string
+          nullable: true
+        coverUrl:
+          type: string
+          nullable: true
+        content:
+          type: string
+          nullable: true
+        filePath:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - title
+        - type
+        - pinned
+        - sortOrder
+        - createdAt
+        - updatedAt
+
+    CreateResourceBody:
+      type: object
+      properties:
+        title:
+          type: string
+        type:
+          type: string
+          enum: [video, website, book, pdf, note, image]
+        url:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        tags:
+          type: string
+          nullable: true
+        colorLabel:
+          type: string
+          nullable: true
+        collectionId:
+          type: integer
+          nullable: true
+        author:
+          type: string
+          nullable: true
+        coverUrl:
+          type: string
+          nullable: true
+        content:
+          type: string
+          nullable: true
+        filePath:
+          type: string
+          nullable: true
+      required:
+        - title
+        - type
+
+    UpdateResourceBody:
+      type: object
+      properties:
+        title:
+          type: string
+        type:
+          type: string
+          enum: [video, website, book, pdf, note, image]
+        url:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        tags:
+          type: string
+          nullable: true
+        colorLabel:
+          type: string
+          nullable: true
+        collectionId:
+          type: integer
+          nullable: true
+        pinned:
+          type: boolean
+        sortOrder:
+          type: integer
+        author:
+          type: string
+          nullable: true
+        coverUrl:
+          type: string
+          nullable: true
+        content:
+          type: string
+          nullable: true
+        filePath:
+          type: string
+          nullable: true
+
+    Collection:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        icon:
+          type: string
+          nullable: true
+        colorLabel:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        resourceCount:
+          type: integer
+      required:
+        - id
+        - name
+        - resourceCount
+        - createdAt
+
+    CreateCollectionBody:
+      type: object
+      properties:
+        name:
+          type: string
+        icon:
+          type: string
+          nullable: true
+        colorLabel:
+          type: string
+          nullable: true
+      required:
+        - name
+
+    UpdateCollectionBody:
+      type: object
+      properties:
+        name:
+          type: string
+        icon:
+          type: string
+          nullable: true
+        colorLabel:
+          type: string
+          nullable: true
+
+    StatsSummary:
+      type: object
+      properties:
+        total:
+          type: integer
+        pinned:
+          type: integer
+        byType:
+          type: object
+          additionalProperties:
+            type: integer
+        collections:
+          type: integer
+      required:
+        - total
+        - pinned
+        - byType
+        - collections
+
+    TagCount:
+      type: object
+      properties:
+        tag:
+          type: string
+        count:
+          type: integer
+      required:
+        - tag
+        - count
+
+    DeleteResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
