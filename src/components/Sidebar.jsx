@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sparkles, Hash, Pin, Video, Globe, Book, FileText, File, Image as ImageIcon, Trash2, Newspaper, Code2 } from "lucide-react";
+import { Sparkles, Hash, Pin, Video, Globe, Book, FileText, File, Image as ImageIcon, Trash2, Newspaper, Code2, LogOut } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useListCollections, useCreateCollection, useDeleteCollection, useGetStatsSummary, useGetPopularTags, getListCollectionsQueryKey } from "@workspace/api-client-react";
@@ -35,7 +35,7 @@ function toArray(value) {
     }
     return [];
 }
-export function Sidebar({ currentType, onSelectType, currentCollection, onSelectCollection, currentTag, onSelectTag, className, onInteract }) {
+export function Sidebar({ user, onLogout, currentType, onSelectType, currentCollection, onSelectCollection, currentTag, onSelectTag, className, onInteract }) {
     const queryClient = useQueryClient();
     const { data: collectionsData } = useListCollections();
     const { data: statsData } = useGetStatsSummary();
@@ -89,6 +89,12 @@ export function Sidebar({ currentType, onSelectType, currentCollection, onSelect
       <div className="flex flex-col items-center justify-center gap-2 px-5 pb-4 pt-4 sm:gap-3 sm:px-8 sm:pt-8">
         <img src="/logo.jpg" alt="Noetica Logo" className="h-16 w-16 rounded-full object-contain shadow-[0_0_20px_rgba(255,255,255,0.15)] ring-1 ring-white/10 sm:h-24 sm:w-24 lg:h-32 lg:w-32" />
         <h1 className="text-xl tracking-wider text-white sm:text-2xl lg:text-3xl font-serif">Noetica</h1>
+        {user && (
+          <div className="flex flex-col items-center gap-1 mt-1">
+            <span className="text-[10px] text-white/40 uppercase tracking-[0.2em] font-medium">Voyager</span>
+            <span className="text-xs text-white/60 font-medium tracking-wide">{user.username || user.email}</span>
+          </div>
+        )}
       </div>
 
       <ScrollArea className="flex-1 px-3 sm:px-4">
@@ -140,10 +146,17 @@ export function Sidebar({ currentType, onSelectType, currentCollection, onSelect
       </ScrollArea>
 
       {stats && (<div className="border-t border-white/10 bg-white/5 p-4">
-          <div className="flex justify-between items-center text-xs text-white/50">
+          <div className="flex justify-between items-center text-xs text-white/50 mb-3">
             <span>{statsTotal} total</span>
             <span className="flex items-center gap-1"><Pin className="w-3 h-3"/> {statsPinned} pinned</span>
           </div>
+          <button 
+            onClick={onLogout}
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors text-xs font-medium uppercase tracking-widest border border-red-500/10"
+          >
+            <LogOut className="w-3 h-3" />
+            Logout
+          </button>
         </div>)}
     </aside>);
 }

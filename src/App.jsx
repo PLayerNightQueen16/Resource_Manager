@@ -5,11 +5,14 @@ import { Sidebar } from "@/components/Sidebar";
 import { ResourceCard } from "@/components/ResourceCard";
 import { ResourceModal } from "@/components/ResourceModal";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
+import { Auth } from "@/components/Auth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { auth } from "@/lib/firebase";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 
 const STORAGE_KEY = "noetica:app-state";
 
@@ -45,7 +48,24 @@ export default function App() {
     const debouncedSearch = useDebounce(search, 300);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedResource, setSelectedResource] = useState(null);
+    const [user, setUser] = useState(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(Boolean(storedState.isSidebarOpen));
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    const handleLogout = async () => {
+        try {
+            await signOut(auth);
+            setUser(null);
+        } catch (error) {
+            console.error("Logout failed:", error);
+        }
+    };
     const { data: resourcesData, isLoading } = useListResources({
         type: currentType,
         collectionId: currentCollection,
@@ -79,17 +99,21 @@ export default function App() {
     const sortedResources = [...resources].sort((a, b) => b.id - a.id);
     const pinnedResources = sortedResources.filter(r => r.pinned);
     const unpinnedResources = sortedResources.filter(r => !r.pinned);
+    if (!user) {
+        return <Auth onLogin={setUser}/>;
+    }
+
     return (<div className="min-h-[100dvh] w-full lg:flex text-white selection:bg-white/20">
       <AnimatedBackground />
 
-      <Sidebar className="hidden lg:flex" currentType={currentType} onSelectType={setCurrentType} currentCollection={currentCollection} onSelectCollection={setCurrentCollection} currentTag={currentTag} onSelectTag={setCurrentTag}/>
+      <Sidebar className="hidden lg:flex" user={user} onLogout={handleLogout} currentType={currentType} onSelectType={setCurrentType} currentCollection={currentCollection} onSelectCollection={setCurrentCollection} currentTag={currentTag} onSelectTag={setCurrentTag}/>
 
       <Drawer open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
         <DrawerContent className="max-h-[90dvh] border-white/10 bg-[#090914]/95 text-white backdrop-blur-2xl lg:hidden">
           <DrawerHeader className="border-b border-white/10 text-left">
             <DrawerTitle className="text-white">Browse Filters</DrawerTitle>
           </DrawerHeader>
-          <Sidebar className="h-[calc(90dvh-5rem)] w-full border-0 bg-transparent" currentType={currentType} onSelectType={setCurrentType} currentCollection={currentCollection} onSelectCollection={setCurrentCollection} currentTag={currentTag} onSelectTag={setCurrentTag} onInteract={() => setIsSidebarOpen(false)}/>
+          <Sidebar className="h-[calc(90dvh-5rem)] w-full border-0 bg-transparent" user={user} onLogout={handleLogout} currentType={currentType} onSelectType={setCurrentType} currentCollection={currentCollection} onSelectCollection={setCurrentCollection} currentTag={currentTag} onSelectTag={setCurrentTag} onInteract={() => setIsSidebarOpen(false)}/>
         </DrawerContent>
       </Drawer>
 

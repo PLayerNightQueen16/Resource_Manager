@@ -322,46 +322,28 @@ async function parseSuccessBody(
   }
 }
 
-import { mockCollections, mockResources } from "./mockData";
+import { getAuth } from "firebase/auth";
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  getDocs, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  query, 
+  where,
+  getDoc,
+  serverTimestamp
+} from "firebase/firestore";
 
-const COLLECTIONS_STORAGE_KEY = "noetica:collections";
-const RESOURCES_STORAGE_KEY = "noetica:resources";
-
-function getStoredCollections() {
-  if (typeof window === "undefined") return [...mockCollections];
-  const stored = window.localStorage.getItem(COLLECTIONS_STORAGE_KEY);
-  if (!stored) {
-    window.localStorage.setItem(COLLECTIONS_STORAGE_KEY, JSON.stringify(mockCollections));
-    return [...mockCollections];
-  }
-  return JSON.parse(stored);
+function getFirebaseContext() {
+  const auth = getAuth();
+  const db = getFirestore();
+  const user = auth.currentUser;
+  if (!user) throw new Error("Authentication required");
+  return { auth, db, userId: user.uid };
 }
-
-function getStoredResources() {
-  if (typeof window === "undefined") return [...mockResources];
-  const stored = window.localStorage.getItem(RESOURCES_STORAGE_KEY);
-  if (!stored) {
-    window.localStorage.setItem(RESOURCES_STORAGE_KEY, JSON.stringify(mockResources));
-    return [...mockResources];
-  }
-  return JSON.parse(stored);
-}
-
-function saveCollections(cols: any[]) {
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(COLLECTIONS_STORAGE_KEY, JSON.stringify(cols));
-  }
-}
-
-function saveResources(res: any[]) {
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(RESOURCES_STORAGE_KEY, JSON.stringify(res));
-  }
-}
-
-let _mockCollectionsObj = getStoredCollections();
-let _mockResourcesObj = getStoredResources();
-let nextId = Math.max(..._mockCollectionsObj.map((c: any) => c.id), ..._mockResourcesObj.map((r: any) => r.id), 100) + 1;
 
 export async function customFetch<T = unknown>(
   input: RequestInfo | URL,
@@ -370,104 +352,139 @@ export async function customFetch<T = unknown>(
   const urlStr = typeof input === "string" ? input : (isUrl(input) ? input.toString() : input.url);
   const method = resolveMethod(input, options.method);
   
+  // Auth endpoints are now handled by SDK directly in Auth.jsx, 
+  // but we keep these as pass-throughs or legacy support if needed.
+  if (urlStr.includes('/api/auth/')) {
+    return {} as any; 
+  }
+
+  const { db, userId } = getFirebaseContext();
+
   if (urlStr.includes('/api/collections')) {
+    const colRef = collection(db, "users", userId, "collections");
+    
     if (method === 'GET') {
-      _mockCollectionsObj = getStoredCollections();
-      return _mockCollectionsObj as any;
+      const snapshot = await getDocs(colRef);
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as any;
     }
+    
     if (method === 'POST') {
       const body = JSON.parse(options.body as string);
-      const newCol = { id: nextId++, created_at: new Date().toISOString(), ...body };
-      _mockCollectionsObj.push(newCol);
-      saveCollections(_mockCollectionsObj);
-      return newCol as any;
+      const docRef = await addDoc(colRef, { 
+        ...body, 
+        created_at: new Date().toISOString() 
+      });
+      return { id: docRef.id, ...body } as any;
     }
   }
 
   if (urlStr.includes('/api/resources')) {
+    const resRef = collection(db, "users", userId, "resources");
+    const matchId = urlStr.match(/\/api\/resources\/([^\/\?]+)/);
+    const rId = matchId ? matchId[1] : null;
+
     if (method === 'GET') {
-      _mockResourcesObj = getStoredResources();
-      let result = [..._mockResourcesObj];
+      let q = query(resRef);
+      // Basic filtering support
       try {
         const u = new URL(urlStr, 'http://localhost');
         const rType = u.searchParams.get('type');
         const cId = u.searchParams.get('collectionId');
+        
+        if (rType && rType !== 'undefined') q = query(q, where("type", "==", rType));
+        if (cId && cId !== 'undefined') q = query(q, where("collectionId", "==", cId));
+      } catch (e) {}
+
+      const snapshot = await getDocs(q);
+      let results = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      
+      // Post-filtering for search and tags which Firestore handles poorly with simple queries
+      try {
+        const u = new URL(urlStr, 'http://localhost');
         const tags = u.searchParams.get('tags');
         const search = u.searchParams.get('search');
-        if (rType && rType !== 'undefined') result = result.filter(r => r.type === rType);
-        if (cId && cId !== 'undefined') result = result.filter(r => r.collectionId === Number(cId));
-        if (tags && tags !== 'undefined') result = result.filter(r => r.tags?.toLowerCase().includes(tags.toLowerCase()));
-        if (search && search !== 'undefined') result = result.filter(r => r.title?.toLowerCase().includes(search.toLowerCase()));
+        if (tags && tags !== 'undefined') {
+          results = results.filter((r: any) => r.tags?.toLowerCase().includes(tags.toLowerCase()));
+        }
+        if (search && search !== 'undefined') {
+          results = results.filter((r: any) => r.title?.toLowerCase().includes(search.toLowerCase()));
+        }
       } catch (e) {}
-      return result as any;
+
+      return results as any;
     }
     
-    const matchId = urlStr.match(/\/api\/resources\/(\d+)/);
-    const rId = matchId ? Number(matchId[1]) : null;
-
     if (method === 'POST') {
       const body = JSON.parse(options.body as string);
-      const newRes = { id: nextId++, pinned: false, status: 'Not Started', priority: 'Medium', ...body };
-      _mockResourcesObj.push(newRes);
-      saveResources(_mockResourcesObj);
-      return newRes as any;
+      const docRef = await addDoc(resRef, { 
+        pinned: false, 
+        status: 'Not Started', 
+        priority: 'Medium', 
+        ...body,
+        created_at: serverTimestamp()
+      });
+      return { id: docRef.id, ...body } as any;
     }
 
     if (rId && method === 'PATCH') {
+      const docRef = doc(db, "users", userId, "resources", rId);
       if (urlStr.endsWith('/pin')) {
-        const idx = _mockResourcesObj.findIndex(r => r.id === rId);
-        if (idx > -1) {
-          _mockResourcesObj[idx].pinned = !_mockResourcesObj[idx].pinned;
-          saveResources(_mockResourcesObj);
-          return _mockResourcesObj[idx] as any;
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const currentPinned = docSnap.data().pinned;
+          await updateDoc(docRef, { pinned: !currentPinned });
+          return { id: rId, ...docSnap.data(), pinned: !currentPinned } as any;
         }
       } else {
         const body = JSON.parse(options.body as string);
-        const idx = _mockResourcesObj.findIndex(r => r.id === rId);
-        if (idx > -1) {
-          _mockResourcesObj[idx] = { ..._mockResourcesObj[idx], ...body };
-          saveResources(_mockResourcesObj);
-          return _mockResourcesObj[idx] as any;
-        }
+        await updateDoc(docRef, body);
+        const docSnap = await getDoc(docRef);
+        return { id: rId, ...docSnap.data() } as any;
       }
     }
 
     if (rId && method === 'DELETE') {
-      _mockResourcesObj = _mockResourcesObj.filter(r => r.id !== rId);
-      saveResources(_mockResourcesObj);
+      await deleteDoc(doc(db, "users", userId, "resources", rId));
       return { success: true } as any;
     }
   }
 
   if (urlStr.includes('/api/stats/summary')) {
-    if (method === 'GET') {
-      const total = _mockResourcesObj.length;
-      const pinned = _mockResourcesObj.filter(r => r.pinned).length;
-      const byType = _mockResourcesObj.reduce((acc, r) => {
-        acc[r.type] = (acc[r.type] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-      return { total, pinned, byType } as any;
-    }
+    const resRef = collection(db, "users", userId, "resources");
+    const snapshot = await getDocs(resRef);
+    const resources = snapshot.docs.map(d => d.data());
+    
+    const total = resources.length;
+    const pinned = resources.filter((r: any) => r.pinned).length;
+    const byType = resources.reduce((acc: any, r: any) => {
+      acc[r.type] = (acc[r.type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    return { total, pinned, byType } as any;
   }
 
   if (urlStr.includes('/api/stats/tags')) {
-    if (method === 'GET') {
-      const tagCounts: Record<string, number> = {};
-      _mockResourcesObj.forEach(r => {
-        if (r.tags) {
-          const tgs = r.tags.split(',').map(t => t.trim()).filter(Boolean);
-          tgs.forEach(t => {
-            tagCounts[t] = (tagCounts[t] || 0) + 1;
-          });
-        }
-      });
-      const tagArray = Object.entries(tagCounts).map(([tag, count]) => ({ tag, count }));
-      tagArray.sort((a, b) => b.count - a.count);
-      return tagArray as any;
-    }
+    const resRef = collection(db, "users", userId, "resources");
+    const snapshot = await getDocs(resRef);
+    const resources = snapshot.docs.map(d => d.data());
+    
+    const tagCounts: Record<string, number> = {};
+    resources.forEach((r: any) => {
+      if (r.tags) {
+        const tgs = r.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
+        tgs.forEach((t: string) => {
+          tagCounts[t] = (tagCounts[t] || 0) + 1;
+        });
+      }
+    });
+    const tagArray = Object.entries(tagCounts).map(([tag, count]) => ({ tag, count }));
+    tagArray.sort((a, b) => b.count - a.count);
+    return tagArray as any;
   }
 
-  return [] as any; // Fallback mock
+  return [] as any; 
 }
+
+
 
