@@ -77,49 +77,49 @@ export function ResourceCard({ resource, collection, onClick, index = 0 }) {
         }
     };
     
-    return (<motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: index * 0.05, ease: "easeOut" }} onClick={handleCardClick} className="glass-card rounded-xl p-5 cursor-pointer relative overflow-hidden group flex flex-col h-full" style={{
+    return (<motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: index * 0.05, ease: "easeOut" }} onClick={handleCardClick} className="glass-card group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-xl p-4 sm:p-5" style={{
             "--hover-glow": color,
         }}>
       <div className="absolute top-0 left-0 w-full h-1 opacity-80" style={{ backgroundColor: color }}/>
       
-      <div className="flex items-center justify-between mb-4 relative z-10 w-full gap-2">
-        <div className="p-2 rounded-lg bg-white/5 backdrop-blur-md border border-white/10" style={{ color }}>
+      <div className="relative z-10 mb-4 flex w-full items-start justify-between gap-2">
+        <div className="rounded-lg border border-white/10 bg-white/5 p-2 backdrop-blur-md" style={{ color }}>
           {Icon && <Icon className="w-5 h-5"/>}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button 
              onClick={(e) => { e.stopPropagation(); onClick(); }} 
-             className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white shadow-xl backdrop-blur-md"
+             className="rounded-lg bg-white/10 p-1.5 text-white shadow-xl backdrop-blur-md transition-opacity hover:bg-white/20 lg:opacity-0 lg:group-hover:opacity-100"
           >
              <Edit2 className="w-4 h-4" />
           </button>
           <button 
              onClick={handleDelete} 
-             className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg bg-white/10 hover:bg-red-500/80 text-white shadow-xl backdrop-blur-md"
+             className="rounded-lg bg-white/10 p-1.5 text-white shadow-xl backdrop-blur-md transition-opacity hover:bg-red-500/80 lg:opacity-0 lg:group-hover:opacity-100"
           >
              <Trash2 className="w-4 h-4" />
           </button>
           <button 
              onClick={handleTogglePin} 
-             className={`transition-opacity p-1.5 rounded-lg bg-white/10 ${resource.pinned ? 'opacity-100 text-amber-300 hover:bg-amber-500/80 hover:text-white' : 'opacity-0 group-hover:opacity-100 hover:bg-white/20 text-white/70 hover:text-white'} shadow-xl backdrop-blur-md`}
+             className={`rounded-lg bg-white/10 p-1.5 shadow-xl backdrop-blur-md transition-opacity ${resource.pinned ? 'text-amber-300 opacity-100 hover:bg-amber-500/80 hover:text-white' : 'text-white/70 hover:bg-white/20 hover:text-white lg:opacity-0 lg:group-hover:opacity-100 opacity-100'}`}
           >
              <Pin className="w-4 h-4" fill={resource.pinned ? "currentColor" : "none"}/>
           </button>
         </div>
       </div>
 
-      <h3 className="font-serif text-xl text-white mb-2 leading-tight group-hover:text-white/90 transition-colors line-clamp-2">
+      <h3 className="mb-1.5 line-clamp-2 text-base leading-tight text-white transition-colors group-hover:text-white/90 sm:mb-2 sm:text-lg lg:text-xl">
         {resource.title}
       </h3>
       
-      {resource.description && (<p className="text-sm text-white/60 line-clamp-3 mb-4 flex-1">
+      {resource.description && (<p className="mb-4 flex-1 text-xs text-white/60 line-clamp-2 sm:text-sm sm:line-clamp-3">
           {resource.description}
         </p>)}
       
       {!resource.description && <div className="flex-1"/>}
 
-      {tags.length > 0 && (<div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-white/10 relative z-10">
-          {tags.map((tag, i) => (<span key={i} className="text-xs px-2.5 py-1 rounded-md transition-colors font-medium border"
+      {tags.length > 0 && (<div className="relative z-10 mt-auto flex flex-wrap gap-1.5 border-t border-white/10 pt-3 sm:gap-2 sm:pt-4">
+          {tags.map((tag, i) => (<span key={i} className="text-[10px] px-2 py-0.5 rounded-md transition-colors font-medium border sm:text-xs sm:px-2.5 sm:py-1"
              style={{ backgroundColor: `${color}1A`, color: color, borderColor: `${color}33` }}>
               {tag}
             </span>))}

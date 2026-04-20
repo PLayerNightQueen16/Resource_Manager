@@ -9,6 +9,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { resourceTypeColors } from "./Sidebar";
 import { Pin, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const DRAFT_STORAGE_KEY = "noetica:resource-draft";
+
+function getDraftKey(resourceId) {
+    return resourceId ? `${DRAFT_STORAGE_KEY}:${resourceId}` : `${DRAFT_STORAGE_KEY}:new`;
+}
+
+function readDraft(resourceId) {
+    if (typeof window === "undefined")
+        return null;
+    try {
+        const stored = window.localStorage.getItem(getDraftKey(resourceId));
+        return stored ? JSON.parse(stored) : null;
+    }
+    catch {
+        return null;
+    }
+}
+
+function clearDraft(resourceId) {
+    if (typeof window === "undefined")
+        return;
+    window.localStorage.removeItem(getDraftKey(resourceId));
+}
+
 export function ResourceModal({ resource, isOpen, onClose, collections }) {
     const queryClient = useQueryClient();
     const createResource = useCreateResource();
@@ -29,7 +54,8 @@ export function ResourceModal({ resource, isOpen, onClose, collections }) {
     const isEditing = !!resource;
     useEffect(() => {
         if (isOpen && resource) {
-            setFormData({
+            const savedDraft = readDraft(resource.id);
+            setFormData(savedDraft || {
                 title: resource.title || "",
                 type: resource.type || "website",
                 url: resource.url || "",
@@ -42,7 +68,8 @@ export function ResourceModal({ resource, isOpen, onClose, collections }) {
             });
         }
         else if (isOpen && !resource) {
-            setFormData({
+            const savedDraft = readDraft();
+            setFormData(savedDraft || {
                 title: "",
                 type: "website",
                 url: "",
@@ -55,6 +82,11 @@ export function ResourceModal({ resource, isOpen, onClose, collections }) {
             });
         }
     }, [isOpen, resource]);
+    useEffect(() => {
+        if (!isOpen || typeof window === "undefined")
+            return;
+        window.localStorage.setItem(getDraftKey(resource?.id), JSON.stringify(formData));
+    }, [formData, isOpen, resource?.id]);
     const handleSubmit = (e) => {
         e.preventDefault();
         const dataToSubmit = { ...formData };
@@ -67,6 +99,7 @@ export function ResourceModal({ resource, isOpen, onClose, collections }) {
         if (isEditing && resource) {
             updateResource.mutate({ id: resource.id, data: dataToSubmit }, {
                 onSuccess: () => {
+                    clearDraft(resource.id);
                     queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
                     queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
                     queryClient.invalidateQueries({ queryKey: getGetPopularTagsQueryKey() });
@@ -77,6 +110,7 @@ export function ResourceModal({ resource, isOpen, onClose, collections }) {
         else {
             createResource.mutate({ data: dataToSubmit }, {
                 onSuccess: () => {
+                    clearDraft();
                     queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
                     queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
                     queryClient.invalidateQueries({ queryKey: getGetPopularTagsQueryKey() });
@@ -91,6 +125,7 @@ export function ResourceModal({ resource, isOpen, onClose, collections }) {
         if (window.confirm("Are you sure you want to delete this resource?")) {
             deleteResource.mutate({ id: resource.id }, {
                 onSuccess: () => {
+                    clearDraft(resource.id);
                     queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
                     queryClient.invalidateQueries({ queryKey: getGetStatsSummaryQueryKey() });
                     queryClient.invalidateQueries({ queryKey: getGetPopularTagsQueryKey() });
@@ -114,13 +149,13 @@ export function ResourceModal({ resource, isOpen, onClose, collections }) {
     const typeColor = formData.colorLabel ? staticColorMap[formData.colorLabel] : (resourceTypeColors[formData.type] || "white");
     
     return (<Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent aria-describedby={undefined} className="sm:max-w-[600px] bg-black/40 backdrop-blur-2xl border border-white/10 text-white shadow-2xl p-0 overflow-hidden" style={{ boxShadow: `0 0 40px -10px ${typeColor}20` }}>
-        <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: typeColor }}/>
-        <form onSubmit={handleSubmit} className="flex flex-col max-h-[85vh]">
-          <DialogHeader className="p-6 pb-4 border-b border-white/10">
-            <div className="flex justify-between items-start">
-              <DialogTitle className="text-2xl font-serif">{isEditing ? "Edit Resource" : "New Resource"}</DialogTitle>
-              {isEditing && (<div className="flex items-center gap-2 mr-6">
+      <DialogContent aria-describedby={undefined} className="w-full sm:max-w-[600px] h-full sm:h-auto sm:max-h-[92dvh] overflow-hidden border-0 sm:border border-white/10 bg-black/40 p-0 text-white shadow-2xl backdrop-blur-2xl px-0" style={{ boxShadow: `0 0 40px -10px ${typeColor}20` }}>
+        <div className="absolute top-0 left-0 w-full h-1 z-50" style={{ backgroundColor: typeColor }}/>
+        <form onSubmit={handleSubmit} className="flex h-full sm:max-h-[90dvh] flex-col">
+          <DialogHeader className="border-b border-white/10 p-4 pb-3 sm:p-6">
+            <div className="flex items-center justify-between gap-3">
+              <DialogTitle className="text-lg sm:text-2xl font-serif">{isEditing ? "Edit Resource" : "New Resource"}</DialogTitle>
+              {isEditing && (<div className="mr-8 flex items-center gap-1 sm:gap-2">
                   <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-white/50 hover:text-amber-300 hover:bg-white/5" onClick={handleTogglePin}>
                     <Pin className="h-4 w-4" fill={resource.pinned ? "currentColor" : "none"}/>
                   </Button>
@@ -131,8 +166,8 @@ export function ResourceModal({ resource, isOpen, onClose, collections }) {
             </div>
           </DialogHeader>
 
-          <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto p-4 sm:space-y-5 sm:p-6 pb-24 sm:pb-6">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-2">
                 <label className="text-sm text-white/60">Type</label>
                 <Select value={formData.type} onValueChange={(v) => setFormData({ ...formData, type: v })}>
@@ -172,9 +207,9 @@ export function ResourceModal({ resource, isOpen, onClose, collections }) {
 
             {['video', 'website', 'image', 'article', 'pdf', 'code'].includes(formData.type) && (<div className="space-y-2">
                 <label className="text-sm text-white/60">URL or File</label>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <Input value={formData.url} onChange={(e) => setFormData({ ...formData, url: e.target.value })} className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:ring-1 focus-visible:ring-white/20 font-mono text-sm flex-1" placeholder="https://..."/>
-                  <div className="relative overflow-hidden w-[100px] h-10 border border-white/10 rounded-md bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center cursor-pointer text-sm text-white/70">
+                  <div className="relative flex h-10 w-full cursor-pointer items-center justify-center overflow-hidden rounded-md border border-white/10 bg-white/5 text-sm text-white/70 transition-colors hover:bg-white/10 sm:w-[100px]">
                     Upload
                     <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
@@ -205,7 +240,7 @@ export function ResourceModal({ resource, isOpen, onClose, collections }) {
             </div>
             <div className="space-y-2">
               <label className="text-sm text-white/60">Color Label</label>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {[
             { value: "red", color: "#f87171" },
             { value: "orange", color: "#fb923c" },
@@ -221,12 +256,12 @@ export function ResourceModal({ resource, isOpen, onClose, collections }) {
             </div>
           </div>
 
-          <DialogFooter className="p-6 pt-4 border-t border-white/10 flex justify-end gap-3 bg-white/5">
-            <Button type="button" variant="ghost" onClick={onClose} className="text-white/60 hover:text-white hover:bg-white/10">
+          <DialogFooter className="mt-auto flex flex-row gap-2 border-t border-white/10 bg-black/40 sm:bg-white/5 p-4 sm:p-6 static sm:static">
+            <Button type="button" variant="ghost" onClick={onClose} className="flex-1 text-white/60 hover:text-white hover:bg-white/10 h-11 sm:h-10">
               Cancel
             </Button>
-            <Button type="submit" className="bg-white text-black hover:bg-white/90" disabled={createResource.isPending || updateResource.isPending}>
-              {isEditing ? "Save Changes" : "Create Resource"}
+            <Button type="submit" className="flex-[2] bg-white text-black hover:bg-white/90 h-11 sm:h-10" disabled={createResource.isPending || updateResource.isPending}>
+              {isEditing ? "Save" : "Create"}
             </Button>
           </DialogFooter>
         </form>

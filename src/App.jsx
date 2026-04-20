@@ -1,12 +1,30 @@
-import { useState } from "react";
-import { Plus, Search, Pin } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Plus, Search, Pin, PanelLeft } from "lucide-react";
 import { useListResources, useListCollections, getListResourcesQueryKey } from "@workspace/api-client-react";
 import { Sidebar } from "@/components/Sidebar";
 import { ResourceCard } from "@/components/ResourceCard";
 import { ResourceModal } from "@/components/ResourceModal";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useIsMobile } from "@/hooks/use-mobile";
+
+const STORAGE_KEY = "noetica:app-state";
+
+function readStoredState() {
+    if (typeof window === "undefined")
+        return {};
+    try {
+        const stored = window.localStorage.getItem(STORAGE_KEY);
+        return stored ? JSON.parse(stored) : {};
+    }
+    catch {
+        return {};
+    }
+}
+
 function toArray(value) {
     if (Array.isArray(value))
         return value;
@@ -18,13 +36,16 @@ function toArray(value) {
     return [];
 }
 export default function App() {
-    const [currentType, setCurrentType] = useState();
-    const [currentCollection, setCurrentCollection] = useState();
-    const [currentTag, setCurrentTag] = useState();
-    const [search, setSearch] = useState("");
+    const [storedState] = useState(() => readStoredState());
+    const isMobile = useIsMobile();
+    const [currentType, setCurrentType] = useState(storedState.currentType);
+    const [currentCollection, setCurrentCollection] = useState(storedState.currentCollection);
+    const [currentTag, setCurrentTag] = useState(storedState.currentTag);
+    const [search, setSearch] = useState(storedState.search || "");
     const debouncedSearch = useDebounce(search, 300);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedResource, setSelectedResource] = useState(null);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(Boolean(storedState.isSidebarOpen));
     const { data: resourcesData, isLoading } = useListResources({
         type: currentType,
         collectionId: currentCollection,
@@ -34,6 +55,22 @@ export default function App() {
     const { data: collectionsData } = useListCollections();
     const resources = toArray(resourcesData);
     const collections = toArray(collectionsData);
+    useEffect(() => {
+        if (typeof window === "undefined")
+            return;
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            currentType,
+            currentCollection,
+            currentTag,
+            search,
+            isSidebarOpen,
+        }));
+    }, [currentType, currentCollection, currentTag, search, isSidebarOpen]);
+    useEffect(() => {
+        if (!isMobile) {
+            setIsSidebarOpen(false);
+        }
+    }, [isMobile]);
     const handleOpenModal = (resource) => {
         setSelectedResource(resource || null);
         setIsModalOpen(true);
@@ -42,20 +79,34 @@ export default function App() {
     const sortedResources = [...resources].sort((a, b) => b.id - a.id);
     const pinnedResources = sortedResources.filter(r => r.pinned);
     const unpinnedResources = sortedResources.filter(r => !r.pinned);
-    return (<div className="min-h-[100dvh] w-full flex text-white selection:bg-white/20">
+    return (<div className="min-h-[100dvh] w-full lg:flex text-white selection:bg-white/20">
       <AnimatedBackground />
-      
-      <Sidebar currentType={currentType} onSelectType={setCurrentType} currentCollection={currentCollection} onSelectCollection={setCurrentCollection} currentTag={currentTag} onSelectTag={setCurrentTag}/>
 
-      <main className="flex-1 flex flex-col h-[100dvh] overflow-hidden relative">
-        <header className="p-6 sticky top-0 z-10 bg-gradient-to-b from-[#0a0a1a] to-transparent">
-          <div className="relative max-w-2xl mx-auto">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40"/>
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search your knowledge base..." className="w-full h-12 pl-12 bg-white/5 border-white/10 text-white placeholder:text-white/40 rounded-2xl backdrop-blur-md focus-visible:ring-1 focus-visible:ring-white/20 focus-visible:border-white/20 text-lg shadow-xl"/>
+      <Sidebar className="hidden lg:flex" currentType={currentType} onSelectType={setCurrentType} currentCollection={currentCollection} onSelectCollection={setCurrentCollection} currentTag={currentTag} onSelectTag={setCurrentTag}/>
+
+      <Drawer open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
+        <DrawerContent className="max-h-[90dvh] border-white/10 bg-[#090914]/95 text-white backdrop-blur-2xl lg:hidden">
+          <DrawerHeader className="border-b border-white/10 text-left">
+            <DrawerTitle className="text-white">Browse Filters</DrawerTitle>
+          </DrawerHeader>
+          <Sidebar className="h-[calc(90dvh-5rem)] w-full border-0 bg-transparent" currentType={currentType} onSelectType={setCurrentType} currentCollection={currentCollection} onSelectCollection={setCurrentCollection} currentTag={currentTag} onSelectTag={setCurrentTag} onInteract={() => setIsSidebarOpen(false)}/>
+        </DrawerContent>
+      </Drawer>
+
+      <main className="relative flex min-h-[100dvh] flex-1 flex-col overflow-hidden">
+        <header className="sticky top-0 z-10 bg-gradient-to-b from-[#0a0a1a] via-[#0a0a1a]/90 to-transparent px-3 py-2.5 sm:px-5 sm:py-4 lg:px-6">
+          <div className="mx-auto flex max-w-7xl items-center gap-2 sm:gap-3">
+            <Button type="button" variant="ghost" size="icon" onClick={() => setIsSidebarOpen(true)} className="h-10 w-10 shrink-0 rounded-xl border border-white/10 bg-white/5 text-white hover:bg-white/10 lg:hidden">
+              <PanelLeft className="h-4 w-4"/>
+            </Button>
+            <div className="relative mx-auto w-full max-w-2xl">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 sm:w-5 sm:h-5"/>
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search your knowledge base..." className="h-10 w-full rounded-xl border-white/10 bg-white/5 pl-10 text-sm text-white shadow-xl backdrop-blur-md placeholder:text-white/40 focus-visible:border-white/20 focus-visible:ring-1 focus-visible:ring-white/20 sm:h-12 sm:rounded-2xl sm:pl-12 sm:text-lg"/>
+            </div>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-6 pt-0 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto px-3 pb-24 pt-1 custom-scrollbar sm:px-5 lg:px-6">
           <div className="max-w-7xl mx-auto">
             {isLoading ? (<div className="flex items-center justify-center h-64 text-white/40">
                 <div className="animate-pulse">Divining knowledge...</div>
@@ -63,10 +114,10 @@ export default function App() {
                 <div className="space-y-10">
                   {pinnedResources.length > 0 && (
                     <div>
-                      <h3 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-4 px-1 flex items-center gap-2">
+                      <h3 className="mb-4 flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-[0.25em] text-white/50 sm:text-sm">
                         <Pin className="w-4 h-4 text-amber-300" /> Pinned
                       </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-max">
+                      <div className="grid auto-rows-max grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5">
                         {pinnedResources.map((resource, i) => {
                           const parentCollection = collections.find(c => c.id === resource.collectionId);
                           return (
@@ -86,11 +137,11 @@ export default function App() {
                   {unpinnedResources.length > 0 && (
                     <div>
                       {pinnedResources.length > 0 && (
-                        <h3 className="text-sm font-semibold text-white/50 uppercase tracking-wider mb-4 px-1">
+                        <h3 className="mb-4 px-1 text-xs font-semibold uppercase tracking-[0.25em] text-white/50 sm:text-sm">
                           All Resources
                         </h3>
                       )}
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-max">
+                      <div className="grid auto-rows-max grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5">
                         {unpinnedResources.map((resource, i) => {
                           const parentCollection = collections.find(c => c.id === resource.collectionId);
                           return (
@@ -117,8 +168,8 @@ export default function App() {
           </div>
         </div>
 
-        <button onClick={() => handleOpenModal()} className="absolute bottom-8 right-8 w-14 h-14 bg-white text-black rounded-full flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-transform group">
-          <Plus className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300"/>
+        <button onClick={() => handleOpenModal()} className="group absolute bottom-4 right-4 flex h-12 w-12 items-center justify-center rounded-full bg-white text-black shadow-2xl transition-transform hover:scale-105 active:scale-95 sm:bottom-6 sm:right-6 sm:h-14 sm:w-14">
+          <Plus className="h-5 w-5 transition-transform duration-300 group-hover:rotate-90 sm:h-6 sm:w-6"/>
         </button>
       </main>
 

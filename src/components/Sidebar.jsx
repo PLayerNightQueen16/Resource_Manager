@@ -35,7 +35,7 @@ function toArray(value) {
     }
     return [];
 }
-export function Sidebar({ currentType, onSelectType, currentCollection, onSelectCollection, currentTag, onSelectTag }) {
+export function Sidebar({ currentType, onSelectType, currentCollection, onSelectCollection, currentTag, onSelectTag, className, onInteract }) {
     const queryClient = useQueryClient();
     const { data: collectionsData } = useListCollections();
     const { data: statsData } = useGetStatsSummary();
@@ -73,25 +73,37 @@ export function Sidebar({ currentType, onSelectType, currentCollection, onSelect
             }
         });
     };
-    return (<div className="w-[260px] flex-shrink-0 h-[100dvh] flex flex-col border-r border-white/10 bg-black/20 backdrop-blur-xl">
-      <div className="p-8 pb-4 flex flex-col items-center justify-center gap-4">
-        <img src="/logo.jpg" alt="Noetica Logo" className="w-32 h-32 object-contain rounded-full shadow-[0_0_30px_rgba(255,255,255,0.15)] ring-1 ring-white/10" />
-        <h1 className="text-3xl font-serif text-white tracking-wider mt-2">Noetica</h1>
+    const handleSelectCollection = (value) => {
+        onSelectCollection(value);
+        onInteract?.();
+    };
+    const handleSelectType = (value) => {
+        onSelectType(value);
+        onInteract?.();
+    };
+    const handleSelectTag = (value) => {
+        onSelectTag(value);
+        onInteract?.();
+    };
+    return (<aside className={cn("flex h-[100dvh] w-[280px] flex-shrink-0 flex-col border-r border-white/10 bg-black/20 backdrop-blur-xl", className)}>
+      <div className="flex flex-col items-center justify-center gap-2 px-5 pb-4 pt-4 sm:gap-3 sm:px-8 sm:pt-8">
+        <img src="/logo.jpg" alt="Noetica Logo" className="h-16 w-16 rounded-full object-contain shadow-[0_0_20px_rgba(255,255,255,0.15)] ring-1 ring-white/10 sm:h-24 sm:w-24 lg:h-32 lg:w-32" />
+        <h1 className="text-xl tracking-wider text-white sm:text-2xl lg:text-3xl font-serif">Noetica</h1>
       </div>
 
-      <ScrollArea className="flex-1 px-4">
+      <ScrollArea className="flex-1 px-3 sm:px-4">
         <div className="space-y-6 pb-8">
           <div>
             <h2 className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-3 px-2">Collections</h2>
             <div className="space-y-1">
-              <button onClick={() => onSelectCollection(undefined)} className={cn("w-full text-left px-3 py-2 rounded-lg text-sm transition-colors", !currentCollection ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5 hover:text-white")}>
+              <button onClick={() => handleSelectCollection(undefined)} className={cn("w-full text-left px-3 py-2 rounded-lg text-sm transition-colors", !currentCollection ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5 hover:text-white")}>
                 All Resources
               </button>
-              {collections.map(c => (<div key={c.id} className={cn("group flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer", currentCollection === c.id ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5 hover:text-white")} onClick={() => onSelectCollection(c.id)}>
+              {collections.map(c => (<div key={c.id} className={cn("group flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors", currentCollection === c.id ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5 hover:text-white")} onClick={() => handleSelectCollection(c.id)}>
                   <span className="truncate">{c.name}</span>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-white/40">{c.resourceCount}</span>
-                    <button onClick={(e) => handleDeleteCollection(c.id, e)} className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-red-400 transition-opacity">
+                    <button onClick={(e) => handleDeleteCollection(c.id, e)} className="text-white/40 transition-opacity hover:text-red-400 lg:opacity-0 lg:group-hover:opacity-100">
                       <Trash2 className="w-3 h-3"/>
                     </button>
                   </div>
@@ -105,7 +117,7 @@ export function Sidebar({ currentType, onSelectType, currentCollection, onSelect
           <div>
             <h2 className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-3 px-2">Types</h2>
             <div className="space-y-1">
-              {Object.entries(resourceTypeIcons).map(([type, Icon]) => (<button key={type} onClick={() => onSelectType(currentType === type ? undefined : type)} className={cn("w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors", currentType === type ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5 hover:text-white")}>
+              {Object.entries(resourceTypeIcons).map(([type, Icon]) => (<button key={type} onClick={() => handleSelectType(currentType === type ? undefined : type)} className={cn("w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors", currentType === type ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5 hover:text-white")}>
                   <div className="flex items-center gap-3">
                     <Icon className="w-4 h-4" style={{ color: resourceTypeColors[type] }}/>
                     <span className="capitalize">{type}</span>
@@ -118,7 +130,7 @@ export function Sidebar({ currentType, onSelectType, currentCollection, onSelect
           <div>
             <h2 className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-3 px-2">Tags</h2>
             <div className="flex flex-wrap gap-1 px-1">
-              {tags.map((t) => (<button key={t.tag} onClick={() => onSelectTag(currentTag === t.tag ? undefined : t.tag)} className={cn("px-2 py-1 rounded-md text-xs transition-colors flex items-center gap-1", currentTag === t.tag ? "bg-white/20 text-white" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white")}>
+              {tags.map((t) => (<button key={t.tag} onClick={() => handleSelectTag(currentTag === t.tag ? undefined : t.tag)} className={cn("px-2 py-1 rounded-md text-xs transition-colors flex items-center gap-1", currentTag === t.tag ? "bg-white/20 text-white" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white")}>
                   <Hash className="w-3 h-3 opacity-50"/>
                   {t.tag}
                 </button>))}
@@ -127,11 +139,11 @@ export function Sidebar({ currentType, onSelectType, currentCollection, onSelect
         </div>
       </ScrollArea>
 
-      {stats && (<div className="p-4 border-t border-white/10 bg-white/5">
+      {stats && (<div className="border-t border-white/10 bg-white/5 p-4">
           <div className="flex justify-between items-center text-xs text-white/50">
             <span>{statsTotal} total</span>
             <span className="flex items-center gap-1"><Pin className="w-3 h-3"/> {statsPinned} pinned</span>
           </div>
         </div>)}
-    </div>);
+    </aside>);
 }

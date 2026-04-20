@@ -324,9 +324,44 @@ async function parseSuccessBody(
 
 import { mockCollections, mockResources } from "./mockData";
 
-let _mockCollectionsObj = [...mockCollections];
-let _mockResourcesObj = [...mockResources];
-let nextId = 100;
+const COLLECTIONS_STORAGE_KEY = "noetica:collections";
+const RESOURCES_STORAGE_KEY = "noetica:resources";
+
+function getStoredCollections() {
+  if (typeof window === "undefined") return [...mockCollections];
+  const stored = window.localStorage.getItem(COLLECTIONS_STORAGE_KEY);
+  if (!stored) {
+    window.localStorage.setItem(COLLECTIONS_STORAGE_KEY, JSON.stringify(mockCollections));
+    return [...mockCollections];
+  }
+  return JSON.parse(stored);
+}
+
+function getStoredResources() {
+  if (typeof window === "undefined") return [...mockResources];
+  const stored = window.localStorage.getItem(RESOURCES_STORAGE_KEY);
+  if (!stored) {
+    window.localStorage.setItem(RESOURCES_STORAGE_KEY, JSON.stringify(mockResources));
+    return [...mockResources];
+  }
+  return JSON.parse(stored);
+}
+
+function saveCollections(cols: any[]) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(COLLECTIONS_STORAGE_KEY, JSON.stringify(cols));
+  }
+}
+
+function saveResources(res: any[]) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(RESOURCES_STORAGE_KEY, JSON.stringify(res));
+  }
+}
+
+let _mockCollectionsObj = getStoredCollections();
+let _mockResourcesObj = getStoredResources();
+let nextId = Math.max(..._mockCollectionsObj.map((c: any) => c.id), ..._mockResourcesObj.map((r: any) => r.id), 100) + 1;
 
 export async function customFetch<T = unknown>(
   input: RequestInfo | URL,
@@ -336,17 +371,22 @@ export async function customFetch<T = unknown>(
   const method = resolveMethod(input, options.method);
   
   if (urlStr.includes('/api/collections')) {
-    if (method === 'GET') return _mockCollectionsObj as any;
+    if (method === 'GET') {
+      _mockCollectionsObj = getStoredCollections();
+      return _mockCollectionsObj as any;
+    }
     if (method === 'POST') {
       const body = JSON.parse(options.body as string);
       const newCol = { id: nextId++, created_at: new Date().toISOString(), ...body };
       _mockCollectionsObj.push(newCol);
+      saveCollections(_mockCollectionsObj);
       return newCol as any;
     }
   }
 
   if (urlStr.includes('/api/resources')) {
     if (method === 'GET') {
+      _mockResourcesObj = getStoredResources();
       let result = [..._mockResourcesObj];
       try {
         const u = new URL(urlStr, 'http://localhost');
@@ -369,6 +409,7 @@ export async function customFetch<T = unknown>(
       const body = JSON.parse(options.body as string);
       const newRes = { id: nextId++, pinned: false, status: 'Not Started', priority: 'Medium', ...body };
       _mockResourcesObj.push(newRes);
+      saveResources(_mockResourcesObj);
       return newRes as any;
     }
 
@@ -377,6 +418,7 @@ export async function customFetch<T = unknown>(
         const idx = _mockResourcesObj.findIndex(r => r.id === rId);
         if (idx > -1) {
           _mockResourcesObj[idx].pinned = !_mockResourcesObj[idx].pinned;
+          saveResources(_mockResourcesObj);
           return _mockResourcesObj[idx] as any;
         }
       } else {
@@ -384,6 +426,7 @@ export async function customFetch<T = unknown>(
         const idx = _mockResourcesObj.findIndex(r => r.id === rId);
         if (idx > -1) {
           _mockResourcesObj[idx] = { ..._mockResourcesObj[idx], ...body };
+          saveResources(_mockResourcesObj);
           return _mockResourcesObj[idx] as any;
         }
       }
@@ -391,6 +434,7 @@ export async function customFetch<T = unknown>(
 
     if (rId && method === 'DELETE') {
       _mockResourcesObj = _mockResourcesObj.filter(r => r.id !== rId);
+      saveResources(_mockResourcesObj);
       return { success: true } as any;
     }
   }
@@ -426,3 +470,4 @@ export async function customFetch<T = unknown>(
 
   return [] as any; // Fallback mock
 }
+
