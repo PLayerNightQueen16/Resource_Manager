@@ -322,50 +322,107 @@ async function parseSuccessBody(
   }
 }
 
+import { mockCollections, mockResources } from "./mockData";
+
+let _mockCollectionsObj = [...mockCollections];
+let _mockResourcesObj = [...mockResources];
+let nextId = 100;
+
 export async function customFetch<T = unknown>(
   input: RequestInfo | URL,
   options: CustomFetchOptions = {},
 ): Promise<T> {
-  input = applyBaseUrl(input);
-  const { responseType = "auto", headers: headersInit, ...init } = options;
-
-  const method = resolveMethod(input, init.method);
-
-  if (init.body != null && (method === "GET" || method === "HEAD")) {
-    throw new TypeError(`customFetch: ${method} requests cannot have a body.`);
-  }
-
-  const headers = mergeHeaders(isRequest(input) ? input.headers : undefined, headersInit);
-
-  if (
-    typeof init.body === "string" &&
-    !headers.has("content-type") &&
-    looksLikeJson(init.body)
-  ) {
-    headers.set("content-type", "application/json");
-  }
-
-  if (responseType === "json" && !headers.has("accept")) {
-    headers.set("accept", DEFAULT_JSON_ACCEPT);
-  }
-
-  // Attach bearer token when an auth getter is configured and no
-  // Authorization header has been explicitly provided.
-  if (_authTokenGetter && !headers.has("authorization")) {
-    const token = await _authTokenGetter();
-    if (token) {
-      headers.set("authorization", `Bearer ${token}`);
+  const urlStr = typeof input === "string" ? input : (isUrl(input) ? input.toString() : input.url);
+  const method = resolveMethod(input, options.method);
+  
+  if (urlStr.includes('/api/collections')) {
+    if (method === 'GET') return _mockCollectionsObj as any;
+    if (method === 'POST') {
+      const body = JSON.parse(options.body as string);
+      const newCol = { id: nextId++, created_at: new Date().toISOString(), ...body };
+      _mockCollectionsObj.push(newCol);
+      return newCol as any;
     }
   }
 
-  const requestInfo = { method, url: resolveUrl(input) };
+  if (urlStr.includes('/api/resources')) {
+    if (method === 'GET') {
+      let result = [..._mockResourcesObj];
+      try {
+        const u = new URL(urlStr, 'http://localhost');
+        const rType = u.searchParams.get('type');
+        const cId = u.searchParams.get('collectionId');
+        const tags = u.searchParams.get('tags');
+        const search = u.searchParams.get('search');
+        if (rType && rType !== 'undefined') result = result.filter(r => r.type === rType);
+        if (cId && cId !== 'undefined') result = result.filter(r => r.collectionId === Number(cId));
+        if (tags && tags !== 'undefined') result = result.filter(r => r.tags?.toLowerCase().includes(tags.toLowerCase()));
+        if (search && search !== 'undefined') result = result.filter(r => r.title?.toLowerCase().includes(search.toLowerCase()));
+      } catch (e) {}
+      return result as any;
+    }
+    
+    const matchId = urlStr.match(/\/api\/resources\/(\d+)/);
+    const rId = matchId ? Number(matchId[1]) : null;
 
-  const response = await fetch(input, { ...init, method, headers });
+    if (method === 'POST') {
+      const body = JSON.parse(options.body as string);
+      const newRes = { id: nextId++, pinned: false, status: 'Not Started', priority: 'Medium', ...body };
+      _mockResourcesObj.push(newRes);
+      return newRes as any;
+    }
 
-  if (!response.ok) {
-    const errorData = await parseErrorBody(response, method);
-    throw new ApiError(response, errorData, requestInfo);
+    if (rId && method === 'PATCH') {
+      if (urlStr.endsWith('/pin')) {
+        const idx = _mockResourcesObj.findIndex(r => r.id === rId);
+        if (idx > -1) {
+          _mockResourcesObj[idx].pinned = !_mockResourcesObj[idx].pinned;
+          return _mockResourcesObj[idx] as any;
+        }
+      } else {
+        const body = JSON.parse(options.body as string);
+        const idx = _mockResourcesObj.findIndex(r => r.id === rId);
+        if (idx > -1) {
+          _mockResourcesObj[idx] = { ..._mockResourcesObj[idx], ...body };
+          return _mockResourcesObj[idx] as any;
+        }
+      }
+    }
+
+    if (rId && method === 'DELETE') {
+      _mockResourcesObj = _mockResourcesObj.filter(r => r.id !== rId);
+      return { success: true } as any;
+    }
   }
 
-  return (await parseSuccessBody(response, responseType, requestInfo)) as T;
+  if (urlStr.includes('/api/stats/summary')) {
+    if (method === 'GET') {
+      const total = _mockResourcesObj.length;
+      const pinned = _mockResourcesObj.filter(r => r.pinned).length;
+      const byType = _mockResourcesObj.reduce((acc, r) => {
+        acc[r.type] = (acc[r.type] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      return { total, pinned, byType } as any;
+    }
+  }
+
+  if (urlStr.includes('/api/stats/tags')) {
+    if (method === 'GET') {
+      const tagCounts: Record<string, number> = {};
+      _mockResourcesObj.forEach(r => {
+        if (r.tags) {
+          const tgs = r.tags.split(',').map(t => t.trim()).filter(Boolean);
+          tgs.forEach(t => {
+            tagCounts[t] = (tagCounts[t] || 0) + 1;
+          });
+        }
+      });
+      const tagArray = Object.entries(tagCounts).map(([tag, count]) => ({ tag, count }));
+      tagArray.sort((a, b) => b.count - a.count);
+      return tagArray as any;
+    }
+  }
+
+  return [] as any; // Fallback mock
 }
